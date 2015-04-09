@@ -1,2 +1,2 @@
 # python-packet-sniffer
-A simple packet sniffer using raw sockets in python.
+A simple Windows packet sniffer using raw sockets in python.

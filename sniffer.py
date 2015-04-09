@@ -5,13 +5,11 @@ Mariana Flores
 Geoff Lyle
 
 To do:
-Sniff TCP, UDP, and another protocol.
-Sniff more than one packet. Continuously sniffy packets.
-Add a begin prompt with directions.
-Add an exit key stroke.
+Sniff another protocol.
+Add exceptions for error control.
 
 Description:
-This application processes packets in the local network and displays
+This Windows application processes packets in the local network and displays
 	the supported protocol's header.
 The header is displayed in the same format(s) wireshark displays them.
 More features are to come.
@@ -39,6 +37,7 @@ constUDPHeaderLength = 8
 
 # Counter to limit how much the while loop runs.
 counter = 0
+counterLimit = 5
 
 # The public network interface.
 HOST = socket.gethostbyname(socket.gethostname())
@@ -53,9 +52,8 @@ s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 # Receive all packages.
 s.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
 
-# While loop is coupled with counter and runs until counter reaches its limit.
-while True:
-	
+# Loop is used with counter and counterLimit, runs until counter reaches its limit.
+while True:	
 	# Recieve the packets in the network.
 	# Packet will be a tuple, use the first element in the tuple.
 	packet = s.recvfrom(65565)
@@ -76,11 +74,11 @@ while True:
 	# Our fourth B is 1 byte and contains the protocol.
 	ipProtocol = ipHeaderUnpacked[6]
 	
-	# If the protocol is not supported, continue to the beginning of the while loop
-	#	and sniff another packet.
-	# If the protocol is supported, the resume to unpack the IP Header and
+	# If the protocol is not supported, continue to the beginning of the
+	# 	loop and sniff another packet.
+	# If the protocol is supported, resume to unpack the rest of the IP Header and
 	#	unpack the corresponding protocol's header.
-	if (int(ipProtocol) != 8) and (int(ipProtocol) != 17):
+	if (ipProtocol != 6) and (ipProtocol != 17):
 		continue
 	
 	# The first B is 1 byte and contains the version and header length.
@@ -89,7 +87,7 @@ while True:
 	ipVersion = ipVersionAndHeaderLength >> 4
 	ipHeaderLength = ipVersionAndHeaderLength & 0xF
 
-	# The second B is 1 byte and contains the service type.
+	# The second B is 1 byte and contains the service type and ECN.
 	ipDSCPAndECN = ipHeaderUnpacked[1]
 	ipDSCP = ipDSCPAndECN >> 2
 	ipECN = ipDSCPAndECN & 0xB
@@ -119,9 +117,108 @@ while True:
 	# The second 4s is 4 bytes and contains the dest address.
 	ipDestAddress = socket.inet_ntoa(ipHeaderUnpacked[9]);
 
-	# If the protocol is 17, meaning UDP, then unpack UDP.
-	if ipProtocol == 17:
+	# Print IP Header
+	# Some segments of the header are switched back to hex form because that
+	# 	is the format wireshark has it.
+	print('IP' + 
+		'\nVersion: ' + str(ipVersion) +
+		'\nHeader Length: ' + str(ipHeaderLength) + ' 32-bit words' +
+		'\nDifferentiated Services Code Point: ' + format(ipDSCP, '#04X') +
+		'\nExplicit Congestion Notification: ' + format(ipECN, '#04X') +
+		'\nTotal Length: ' + str(ipTotalLength) + ' bytes' + 
+		'\nIdentification: ' + format(ipIdentification, '#04X') + ' , ' + str(ipIdentification) +
+		'\nFlags: ' + format(ipFlags, '#04X') +
+		'\nFragment Offset: ' + str(ipFragmentOffset) + ' eight-byte blocks' +
+		'\nTime to Live: ' + str(ipTimeToLive) + ' seconds' +
+		'\nProtocol: ' + str(ipProtocol) +
+		'\nHeader Checksum: ' + format(ipHeaderChecksum, '#04X') +
+		'\nSource Address: ' + str(ipSourceAddress) +
+		'\nDestination Address: ' + str(ipDestAddress))
+	
+	# Spacing between IP header and the protocol's header.
+	print('\n')
+
+	# If the protocol is 6, meaning TCP, then unpack the TCP header.
+	if ipProtocol == 6:
+		# The TCP header is the 20 bytes after the IP Header ends.
+		tcpHeader = packet[constIPHeaderLength:constIPHeaderLength + constTCPHeaderLength]
+
+		# Unpack the header because it originally in hex.
+		# The regular expression helps unpack the header.
+		# ! signifies we are unpacking a network endian.
+		# H signifies we are unpacking an integer of size 2 bytes.
+		# L signifies we are unpacking a long of size 4 bytes.
+		# B signifies we are unpacking an integer of size 1 byte.
+		tcpHeaderUnpacked = unpack('!HHLLBBHHH', tcpHeader)
 		
+		# The first H is 2 bytes and contains the source port.
+		tcpSourcePort = tcpHeaderUnpacked[0]
+		
+		# The second H is 2 bytes and contains the destination port.
+		tcpDestPort = tcpHeaderUnpacked[1]
+	
+		# The first L is 2 bytes and contains the sequence number.
+		tcpSeqNumber = tcpHeaderUnpacked[2]
+		
+		# The second L is 4 bytes and contains the acknowledgement number.
+		tcpAckNumber = tcpHeaderUnpacked[3]
+		
+		# The first B is 1 byte and contains the data offset, reserved bits, and NS flag.
+		# Split tcpHeaderUnpacked[4]
+		tcpDataOffsetAndReserved = tcpHeaderUnpacked[4]
+		tcpDataOffset = tcpDataOffsetAndReserved >> 4
+		tcpReserved = (tcpDataOffsetAndReserved >> 1) & 0x7
+		tcpNSFlag = tcpDataOffsetAndReserved & 0x1
+		
+		# The second B is 1 byte and contains the rest of the flags.
+		# Split tcpHeaderUnpacked[5].
+		tcpRestOfFLags = tcpHeaderUnpacked[5]
+		tcpCWRFlag = tcpRestOfFLags >> 7
+		tcpECEFlag = (tcpRestOfFLags >> 6) & 0x1
+		tcpURGFlag = (tcpRestOfFLags >> 5) & 0x1
+		tcpACKFlag = (tcpRestOfFLags >> 4) & 0x1
+		tcpPSHFlag = (tcpRestOfFLags >> 3) & 0x1
+		tcpRSTFlag = (tcpRestOfFLags >> 2) & 0x1
+		tcpSYNFlag = (tcpRestOfFLags >> 1) & 0x1
+		tcpFINFlag = tcpRestOfFLags & 0x1
+		
+		# The third H is 2 bytes and contains the window size.
+		tcpWindowSize = tcpHeaderUnpacked[6]
+		
+		# The fourth H is 2 byte and conntains the checksum.
+		tcpChecksum = tcpHeaderUnpacked[7]
+		
+		# The fifth H is 2 bytes and constains the urgent pointer.
+		tcpUrgentPointer = tcpHeaderUnpacked[8]
+		
+		# Print TCP Header
+		# Some segments of the header are switched back to hex form because that
+		# 	is the format wireshark has it.
+		print('TCP' +
+		'\nSource Port: ' + str(tcpSourcePort) +
+		'\nDestination Port: ' + str(tcpDestPort) +
+		'\nSequence Number: ' + str(tcpSeqNumber) +
+		'\nAcknowledgment Number: ' + str(tcpAckNumber) +
+		'\nData Offset: ' + str(tcpDataOffset) + ' 32-bit words' +
+		'\nReserved: ' + format(tcpReserved, '03b') + '. .... ....' +
+		'\nNS Flag:  ' + '...' + format(tcpNSFlag, '01b') + ' .... ....' +
+		'\nCWR Flag: ' + '.... ' + format(tcpCWRFlag, '01b') + '... ....' +
+		'\nECE Flag: ' + '.... .' + format(tcpECEFlag, '01b') + '.. ....' +
+		'\nURG Flag: ' + '.... ..' + format(tcpURGFlag, '01b') + '. ....' +
+		'\nACK Flag: ' + '.... ...' + format(tcpACKFlag, '01b') + ' ....' +
+		'\nPSH Flag: ' + '.... .... ' + format(tcpPSHFlag, '01b') + '...' +
+		'\nRST Flag: ' + '.... .... .' + format(tcpRSTFlag, '01b') + '..' +
+		'\nSYN Flag: ' + '.... .... ..' + format(tcpSYNFlag, '01b') + '.' +
+		'\nFIN Flag: ' + '.... .... ...' + format(tcpFINFlag, '01b') +
+		'\nWindow Size: ' + str(tcpWindowSize) + ' bytes' +
+		'\nUrgent Pointer: ' + str(tcpUrgentPointer) +
+		'\nChecksum: ' + format(tcpChecksum, '#04X'))
+		
+		# Separator to separate each packet.
+		print('\n----------------------------------------\n')
+	
+	# If the protocol is 17, meaning UDP, then unpack the UDP header.
+	elif ipProtocol == 17:
 		# The UDP header is the 8 bytes after the IP Header ends.
 		udpHeader = packet[constIPHeaderLength:constIPHeaderLength + constUDPHeaderLength]
 
@@ -129,74 +226,50 @@ while True:
 		# The regular expression helps unpack the header.
 		# ! signifies we are unpacking a network endian.
 		# H signifies we are unpacking an integer of size 2 bytes.
-		udpHeader = unpack('!HHHH' , udpHeader)
+		udpHeaderUnpacked = unpack('!HHHH', udpHeader)
 		 
 		# The first H is 2 bytes and contains the source port.
-		udpSourcePort = udpHeader[0]
+		udpSourcePort = udpHeaderUnpacked[0]
 		
 		# The second H is 2 bytes and contains the destination port.
-		udpDestPort = udpHeader[1]
+		udpDestPort = udpHeaderUnpacked[1]
 		
 		# The third H is 2 bytes and contains the packet length.
-		udpLength = udpHeader[2]
+		udpLength = udpHeaderUnpacked[2]
 		
 		# The fourth H is 2 bytes and contains the header checksum.
-		udpChecksum = udpHeader[3]
-					
-	# Increment the counter by one because a packet has been sniffed.
-	counter = counter + 1
-	
-	# Print IP Header
-	# Some segments of the header are switched back to hex form because that
-	# 	is the format wireshark has it.
-	print('IP' + 
-		'\nVersion: ' + str(ipVersion) +
-		'\nHeader Length: ' + str(ipHeaderLength) + ' words' +
-		'\nDifferentiated Services Code Point: ' + str(format(ipDSCP, '#04X')) +
-		'\nExplicit Congestion Notification: ' + str(format(ipECN, '#04X')) +
-		'\nTotal Length: ' + str(ipTotalLength) + ' bytes' + 
-		'\nIdentification: ' + str(format(ipIdentification, '#04X')) + ' , ' + str(ipIdentification) +
-		'\nFlags: ' + str(format(ipFlags, '#04X')) +
-		'\nFragment Offset: ' + str(ipFragmentOffset) + ' eight-byte blocks' +
-		'\nTime to Live: ' + str(ipTimeToLive) + ' seconds' +
-		'\nProtocol: ' +str(ipProtocol) +
-		'\nHeader Checksum: ' +str(format(ipHeaderChecksum, '#04X')) +
-		'\nSource Address: ' + str(ipSourceAddress) +
-		'\nDestination Address: ' + str(ipDestAddress))
-	
-	# Spacing.
-	print('\n')
-	
-	print('UDP' +
+		udpChecksum = udpHeaderUnpacked[3]
+		
+		# Print UDP Header
+		print('UDP' +
 		'\nSource Port: ' + str(udpSourcePort) +
 		'\nDestination Port: ' + str(udpDestPort) +
 		'\nLength: ' + str(udpLength) + ' bytes' +
-		'\nChecksum: ' + str(format(udpChecksum, '#04X')))
-
-	# Packet separator.
-	print('\n----------------------------------------\n')
+		'\nChecksum: ' + format(udpChecksum, '#04X'))
 		
+		# Separator to separate each packet.
+		print('\n----------------------------------------\n')
+	
+	counter = counter + 1
+	
 	# Once the counter reaches its limit, ask to sniff the network again.	
-	if counter == 5:
-		
+	if counter == counterLimit:
 		# Ask to sniff the network again.	
 		again = raw_input('Would you like to sniff the network again? Y or N: ')
 
-		# Y runs the rest of the application.
+		# Y resets the counter to restart the loop and keep sniffing.
 		# N exits the application.
 		if (again == 'Y') or (again == 'y'):
 			counter = 0
 			print('Sniffing...\n')
 			pass
 		elif (again == 'N') or (again == 'n'):
-			s.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
-			s.close
-			print('Goodbye.')
-			sys.exit()
+			break
 		
 # Disable promiscuous mode.
 s.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
 s.close()
 
 # Exit the application.
+print('Goodbye.')
 sys.exit()

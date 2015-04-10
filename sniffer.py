@@ -5,7 +5,6 @@ Mariana Flores
 Geoff Lyle
 
 To do:
-Sniff another protocol.
 Add exceptions for error control.
 
 Description:
@@ -34,6 +33,7 @@ elif (decision == 'N') or (decision == 'n'):
 constIPHeaderLength = 20
 constTCPHeaderLength = 20
 constUDPHeaderLength = 8
+constICMPHeaderLength = 8
 
 # Counter to limit how much the while loop runs.
 counter = 0
@@ -78,7 +78,7 @@ while True:
 	# 	loop and sniff another packet.
 	# If the protocol is supported, resume to unpack the rest of the IP Header and
 	#	unpack the corresponding protocol's header.
-	if (ipProtocol != 6) and (ipProtocol != 17):
+	if (ipProtocol != 1) and (ipProtocol != 6) and (ipProtocol != 17):
 		continue
 	
 	# The first B is 1 byte and contains the version and header length.
@@ -138,8 +138,42 @@ while True:
 	# Spacing between IP header and the protocol's header.
 	print('\n')
 
+	# If the protocol is 1, meaning ICMP, then unpack the ICMP header.
+	if ipProtocol == 1:
+		# The ICMP header is the 8 bytes after the IP Header ends.
+		icmpHeader = packet[constIPHeaderLength:constIPHeaderLength + constICMPHeaderLength]
+		
+		# Unpack the header because it originally in hex.
+		# The regular expression helps unpack the header.
+		# ! signifies we are unpacking a network endian.
+		# B signifies we are unpacking an integer of size 1 byte.
+		# H signifies we are unpacking an integer of size 2 bytes.
+		# L signifies we are unpacking a long of size 4 bytes.
+		icmpHeaderUnpacked = packet('!BBHL', icmpHeader)
+		
+		# The first B is 1 byte and contains the type.
+		icmpType = icmpHeaderUnpacked[0]
+		
+		# The second B is 1 byte and contains the code.
+		icmpCode = icmpHeaderUnpacked[1]
+		
+		# The first H is 2 bytes and contains the checksum.
+		icmpChecksum = icmpHeaderUnpacked[2]
+		
+		# The first L is 4 bytes and contains the rest of the header.
+		icmpRestOfHeader = icmpHeaderUnpacked[3]
+		
+		# Print ICMP Header
+		# Some segments of the header are switched back to hex form because that
+		# 	is the format wireshark has it.
+		print('ICMP' +
+			'Type: ' + str(icmpType) +
+			'Code: ' + str(icmpCode) + 
+			'Checksum: ' + str(icmpChecksum) +
+			'Rest of Header: ' + str(icmpRestOfHeader))
+
 	# If the protocol is 6, meaning TCP, then unpack the TCP header.
-	if ipProtocol == 6:
+	elif ipProtocol == 6:
 		# The TCP header is the 20 bytes after the IP Header ends.
 		tcpHeader = packet[constIPHeaderLength:constIPHeaderLength + constTCPHeaderLength]
 

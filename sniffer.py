@@ -4,28 +4,68 @@ Brandon Deen
 Mariana Flores
 Geoff Lyle
 
-To do:
-Add exceptions for error control.
-
 Description:
-This Windows application processes packets in the local network and displays
-	the supported protocol's header.
+This Linux and Windows application processes packets in the local network and displays
+	the supported protocol's header and data.
+Linux has support for link layer whereas Windows has support for network layer.
 The header is displayed in the same format(s) wireshark displays them.
-More features are to come.
 '''
 
-import socket, sys, time
+import socket, sys, time, platform
 from struct import *
 
 # Constants for each header length.
+constEthHeaderLength = 14
+constARPLength = 28
 constIPHeaderLength = 20
 constTCPHeaderLength = 20
 constUDPHeaderLength = 8
 constICMPHeaderLength = 8
+
+def eth(packet, begin, end):
+	# Get Ethernet header using begin and end.
+	ethHeader = packet[begin:end]
+
+	# Unpack the header because it originally in hex.
+	# The regular expression helps unpack the header.
+	# ! signifies we are unpacking a network endian.
+	# 6s signifies we are unpacking a string of size 6 bytes.
+	# H signifies we are unpacking an integer of size 2 bytes.
+	ethHeaderUnpacked = unpack('!6s6sH', ethHeader)
 	
-def ip(packet):
-	# The IP header is 20 bytes, make ipHeader a list of packet's elements 0 up to 20.	
-	ipHeader = packet[:constIPHeaderLength]
+	# The first 6s is 6 bytes and contains the destination address.
+	ethDestAddress = ethHeaderUnpacked[0]
+	
+	# The second 6s is 6 bytes and contains the source address.
+	ethSourceAddress = ethHeaderUnpacked[1]
+	
+	# The third H is 2 bytes and contains the packet length.
+	ethType = socket.ntohs(ethHeaderUnpacked[2])
+	
+	# Properly unpack and format the destination address.
+	ethDestAddress = "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x" % (ord(ethDestAddress[0]), ord(ethDestAddress[1]), ord(ethDestAddress[2]), ord(ethDestAddress[3]), ord(ethDestAddress[4]), ord(ethDestAddress[5]))
+	
+	# Properly unpack and format the source address.
+	ethSourceAddress = "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x" % (ord(ethSourceAddress[0]), ord(ethSourceAddress[1]), ord(ethSourceAddress[2]), ord(ethSourceAddress[3]), ord(ethSourceAddress[4]), ord(ethSourceAddress[5]))
+	
+	# Print Ethernet Header
+	print('\n********************\n** Ethernet (MAC) **\n********************' +
+	'\nDestination Address: ' + str(ethDestAddress) +
+	'\nSource Address: ' + str(ethSourceAddress) +
+	'\nEtherType: ' + str(ethType))
+	
+	return ethType
+	
+def arp(packet, begin, end):
+	'''
+	Need ARP support
+	'''
+	# Print Ethernet Header
+	print('\n*******************\n******** ARP ********\n*******************')
+
+def ip(packet, begin, end):
+	# Get IP header using begin and end.	
+	ipHeader = packet[begin:end]
 
 	# Unpack the header because it originally in hex.
 	# The regular expression helps unpack the header.
@@ -77,7 +117,7 @@ def ip(packet):
 	# Print IP Header
 	# Some segments of the header are switched back to hex form because that
 	# 	is the format wireshark has it.
-	print('IP' + 
+	print('\n********************\n******** IP ********\n********************' + 
 		'\nVersion: ' + str(ipVersion) +
 		'\nHeader Length: ' + str(ipHeaderLength) + ' 32-bit words' +
 		'\nDifferentiated Services Code Point: ' + format(ipDSCP, '#04X') + ' , ' + str(ipDSCP) +
@@ -92,14 +132,11 @@ def ip(packet):
 		'\nSource Address: ' + str(ipSourceAddress) +
 		'\nDestination Address: ' + str(ipDestAddress))
 	
-	# Spacing between IP header and the protocol's header.
-	print('\n')
-	
 	return ipProtocol
 
-def icmp(packet):
-	# The ICMP header is the 8 bytes after the IP Header ends.
-	icmpHeader = packet[constIPHeaderLength:constIPHeaderLength + constICMPHeaderLength]
+def icmp(packet, begin, end):
+	# Get ICMP header using begin and end.
+	icmpHeader = packet[begin:end]
 
 	# Unpack the header because it originally in hex.
 	# The regular expression helps unpack the header.
@@ -127,25 +164,22 @@ def icmp(packet):
 		# Print ICMP Header
 		# Some segments of the header are switched back to hex form because that
 		# 	is the format wireshark has it.
-		print('ICMP' +
+		print('\n********************\n******* ICMP *******\n********************' +
 			'\nType: ' + str(icmpType) +
 			'\nCode: ' + str(icmpCode) + 
 			'\nChecksum: ' + format(icmpChecksum, '#04X') + 
 			'\nIdentifier: ' + str(icmpIdentifier) +
 			'\nSequence Number: ' + str(icmpSeqNumber))
-	# If not, just print out everything but othe last L.
+	# If not, just print out everything but the last L.
 	else:
-		print('ICMP' +
+		print('\n********************\n******* ICMP *******\n********************' +
 			'\nType: ' + str(icmpType) +
 			'\nCode: ' + str(icmpCode) + 
 			'\nChecksum: ' + format(icmpChecksum, '#04X'))
-			
-	# Separator to separate each packet.
-	print('\n----------------------------------------\n')
 
-def tcp(packet):
-	# The TCP header is the 20 bytes after the IP Header ends.
-	tcpHeader = packet[constIPHeaderLength:constIPHeaderLength + constTCPHeaderLength]
+def tcp(packet, begin, end):
+	# Get TCP header using begin and end.
+	tcpHeader = packet[begin:end]
 
 	# Unpack the header because it originally in hex.
 	# The regular expression helps unpack the header.
@@ -198,7 +232,7 @@ def tcp(packet):
 	# Print TCP Header
 	# Some segments of the header are switched back to hex form because that
 	# 	is the format wireshark has it.
-	print('TCP' +
+	print('\n*******************\n******* TCP *******\n*******************' +
 	'\nSource Port: ' + str(tcpSourcePort) +
 	'\nDestination Port: ' + str(tcpDestPort) +
 	'\nSequence Number: ' + str(tcpSeqNumber) +
@@ -217,13 +251,10 @@ def tcp(packet):
 	'\nWindow Size: ' + str(tcpWindowSize) + ' bytes' +
 	'\nUrgent Pointer: ' + str(tcpUrgentPointer) +
 	'\nChecksum: ' + format(tcpChecksum, '#04X'))
-	
-	# Separator to separate each packet.
-	print('\n----------------------------------------\n')
 
-def udp(packet):
-	# The UDP header is the 8 bytes after the IP Header ends.
-	udpHeader = packet[constIPHeaderLength:constIPHeaderLength	 + constUDPHeaderLength]
+def udp(packet, begin, end):
+	# Get UDP header using begin and end.
+	udpHeader = packet[begin:end]
 
 	# Unpack the header because it originally in hex.
 	# The regular expression helps unpack the header.
@@ -244,85 +275,144 @@ def udp(packet):
 	udpChecksum = udpHeaderUnpacked[3]
 	
 	# Print UDP Header
-	print('UDP' +
+	print('\n*******************\n******* UDP *******\n*******************' +
 	'\nSource Port: ' + str(udpSourcePort) +
 	'\nDestination Port: ' + str(udpDestPort) +
 	'\nLength: ' + str(udpLength) + ' bytes' +
 	'\nChecksum: ' + format(udpChecksum, '#04X'))
-	
-	# Separator to separate each packet.
-	print('\n----------------------------------------\n')
 
-def sniff():
+def start():
 	# Ask the user if they would like to begin the sniffer or not.
 	decision = raw_input('Hello, would you like to sniff the network? Y/N: ')
 
 	# Y runs the rest of the application.
-	if (decision == 'Y') or (decision == 'y'):
-		print('Sniffing, press Ctrl+c to cancel...\n')
-		pass
 	# N exits the application.
+	if (decision == 'Y') or (decision == 'y'):
+		print('Sniffing, press Ctrl+c to cancel...')
 	elif (decision == 'N') or (decision == 'n'):
-		print('Goodbye.')
-		time.sleep(2)
-		sys.exit()
+		close()
 
-	# The public network interface.
-	HOST = socket.gethostbyname(socket.gethostname())
-
-	try:
-		# Create a raw socket and bind it to the public interface.
-		sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
-		sock.bind((HOST, 0))
-
-		# Include IP headers
-		sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
-
-		# Receive all packages.
-		sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
-	
-		while True:	
-			# Recieve the packets in the network.
-			# Packet will be a tuple, use the first element in the tuple.
-			packet = sock.recvfrom(65565)
-			packet = packet[0]
-			
-			# Unpack the IP information.
-			ipProtocol = ip(packet)
-			
-			# If the protocol is 1, meaning ICMP, then unpack the ICMP information.
-			if ipProtocol == 1:
-				icmp(packet)
-			# If the protocol is 6, meaning TCP, then unpack the TCP information.
-			elif ipProtocol == 6:
-				tcp(packet)
-			# If the protocol is 17, meaning UDP, then unpack the UDP information.
-			elif ipProtocol == 17:
-				udp(packet)
-		
-	except socket.error, msg:
-		print('Socket could not be created.\nError code: ' + str(msg[0]) + '\nMessage:' + msg[1])
-	except KeyboardInterrupt:
-		print "Sniffing stopped."
-        
-	# Disable promiscuous mode.
-	sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
-	sock.close()
-
+def close():
 	# Exit the application.
 	print('Goodbye.')
-	time.sleep(2)
-	sys.exit()       
+	time.sleep(1)
+	sys.exit()
+
+def sniff():
+	# Ask the user to begin.
+	start()
+	
+	# Know what platform the application is running on.
+	plat = platform.system()
+	
+	try:
+		# If Linux, set up the raw socket the Linux way.
+		# If Windows, set up the raw socket the Windows way.
+		# If not Linux or Windows, close the application.
+		if plat == 'Linux':
+			# Create the raw socket.
+			sock = socket.socket(socket.AF_PACKET , socket.SOCK_RAW , socket.ntohs(0x0003))
+			
+			# Sniff packets. Will loop until user presses Ctrl+c.
+			while True:	
+				# Recieve the packets in the network.
+				# Packet will be a tuple, use the first element in the tuple.
+				packet = sock.recvfrom(65565)
+				packet = packet[0]
+				
+				# Unpack the Ethernet (MAC) information.
+				begin = 0
+				end = constEthHeaderLength
+				ethType = eth(packet, begin, end)
+				
+				# Find if the Ethernet frame is ARP or IP.
+				begin = constEthHeaderLength
+				if ethType == 1544:
+					# Unpack the ARP information.
+					end = begin + constARPLength
+					arp(packet, begin, end)
+				elif ethType == 8:
+					# Unpack the IP information.
+					end = begin + constIPHeaderLength
+					ipProtocol = ip(packet, begin, end)
+					
+					# If the protocol is 1, meaning ICMP, then unpack the ICMP information.
+					# If the protocol is 6, meaning TCP, then unpack the TCP information.
+					# If the protocol is 17, meaning UDP, then unpack the UDP information.
+					begin = constEthHeaderLength + constIPHeaderLength
+					if ipProtocol == 1:
+						end = begin + constICMPHeaderLength
+						icmp(packet, begin, end)
+					elif ipProtocol == 6:
+						end = begin + constTCPHeaderLength
+						tcp(packet, begin, end)
+					elif ipProtocol == 17:
+						end = begin + constUDPHeaderLength
+						udp(packet, begin, end)
+						
+					print('\n----------------------------------------')
+					
+			# Close the socket.
+			sock.close()
+		elif plat == 'Windows':
+			# The public network interface.
+			HOST = socket.gethostbyname(socket.gethostname())
+
+			# Create a raw socket and bind it to the public interface.
+			sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
+			sock.bind((HOST, 0))
+
+			# Include IP headers
+			sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+
+			# Receive all packages.
+			sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
+			
+			# Sniff packets. Will loop until user presses Ctrl+c.
+			while True:	
+				# Recieve the packets in the network.
+				# Packet will be a tuple, use the first element in the tuple.
+				packet = sock.recvfrom(65565)
+				packet = packet[0]
+				
+				# Unpack the IP information.
+				begin = 0
+				end = constIPHeaderLength
+				ipProtocol = ip(packet, begin, end)
+				
+				# If the protocol is 1, meaning ICMP, then unpack the ICMP information.
+				# If the protocol is 6, meaning TCP, then unpack the TCP information.
+				# If the protocol is 17, meaning UDP, then unpack the UDP information.
+				begin = constIPHeaderLength
+				if ipProtocol == 1:
+					end = begin + constICMPHeaderLength
+					icmp(packet, begin, end)
+				elif ipProtocol == 6:
+					end = begin + constTCPHeaderLength
+					tcp(packet, begin, end)
+				elif ipProtocol == 17:
+					end = begin + constUDPHeaderLength
+					udp(packet, begin, end)
+					
+				print('\n----------------------------------------')	
+			
+			# Disable promiscuous mode.	
+			sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
+			
+			# Close the socket.
+			sock.close()
+		else:
+			print('The OS you are running is not supported.')
+			
+	except socket.error, msg:
+		print('Socket could not be created. \nError code: ' + str(msg[0]) + '\nMessage: ' + msg[1])
+	except KeyboardInterrupt:
+		print "\nSniffing stopped."   
+	
+	close()  
 
 def main():
 	sniff()
 
 if __name__ == "__main__":
 	main()
-'''
-- Fix bitwise operation bugs, was giving wrong output.
-- Split protocol operations into separate functions/methods
-- Continuously sniff packets until user presses Ctrl+c
-- Add trys and excepts for socket errors and keyboard interrupts
-- Display more protocol information
-'''

@@ -64,11 +64,62 @@ def eth(packet, begin, end):
 	return ethType
 	
 def arp(packet, begin, end):
-	'''
-	Need ARP support
-	'''
-	# Print Ethernet Header
-	print('\n*******************\n******** ARP ********\n*******************')
+	# Get ARP header using begin and end.
+	arpHeader = packet[begin:end]
+	
+	# Unpack the header because it originally in hex.
+	# The regular expression helps unpack the header.
+	# ! signifies we are unpacking a network endian.
+	# H signifies we are unpacking an integer of size 2 bytes.
+	# B signifies we are unpacking an integer of size 1 byte.
+	# 6s signifies we are unpacking a string of size 6 bytes.
+	# 4s signifies we are unpacking a string of size 4 bytes.
+	arpHeaderUnpacked = unpack("!HHBBH6s4s6s4s", arpHeader)
+	
+	# The first H is 2 bytes and contains the hardware type.
+	arpHardwareType = socket.ntohs(arpHeaderUnpacked[0])
+	
+	# The second H is 2 bytes and contains the protocol type.
+	arpProtocolType = socket.ntohs(arpHeaderUnpacked[1])
+	
+	# The first B is 1 byte and contains the hardware address length.
+	arpHardAddressLength = arpHeaderUnpacked[2]
+	
+	# The second B is 1 byte and contains the protocol address length.
+	arpProtAddressLength = arpHeaderUnpacked[3]
+	
+	# The third H is 2 bytes and contains the operation.
+	arpOperation = arpHeaderUnpacked[4]
+
+	# The first 6s is 6 bytes and contains the sender hardware address.
+	arpSenderHardAddress = arpHeaderUnpacked[5]
+	
+	# The first 4s is 4 bytes and contains the sender protocol address.
+	arpSenderProtAddress = socket.inet_ntoa(arpHeaderUnpacked[6])
+	
+	# The second 6s is 6 bytes and contains the target hardware address.
+	arpTargetHardAddress = arpHeaderUnpacked[7]
+	
+	# The second 4s is 4 bytes and contains the target protocol address.
+	arpTargetProtAddress = socket.inet_ntoa(arpHeaderUnpacked[8])
+	
+	# Properly unpack and format the source MAC address.
+	arpSenderHardAddress = "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x" % (ord(arpSenderHardAddress[0]), ord(arpSenderHardAddress[1]), ord(arpSenderHardAddress[2]), ord(arpSenderHardAddress[3]), ord(arpSenderHardAddress[4]), ord(arpSenderHardAddress[5]))
+	
+	# Properly unpack and format the destination MAC address.
+	arpTargetHardAddress = "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x" % (ord(arpTargetHardAddress[0]), ord(arpTargetHardAddress[1]), ord(arpTargetHardAddress[2]), ord(arpTargetHardAddress[3]), ord(arpTargetHardAddress[4]), ord(arpTargetHardAddress[5]))
+	
+	# Print Arp Header
+	print('\n*******************\n******* ARP *******\n*******************' +
+		'\nHardware Type: ' + str(arpHardwareType) +
+		'\nProtocol Type: ' + str(arpProtocolType) +
+		'\nHardware Address Length: ' + str(arpHardAddressLength) +
+		'\nProtocol Address Length: ' + str(arpProtAddressLength) +
+		'\nOperation: ' + str(arpOperation) + 
+		'\nSender Hardware Address: ' + str(arpSenderHardAddress) +
+		'\nSender Protocol Address: ' + str(arpSenderProtAddress) +
+		'\nTarget Hardware Address: ' + str(arpTargetHardAddress) +
+		'\nTarget Protocol Address: ' + str(arpTargetProtAddress))
 
 def ip(packet, begin, end):
 	# Get IP header using begin and end.	
@@ -296,6 +347,7 @@ def linuxUnpack(packet, sniff):
 
 	# Find if the Ethernet frame is ARP or IP.
 	begin = constEthHeaderLength
+	protocol = ''
 	if ethProtocol == 1544:
 		# Unpack the ARP information.
 		end = begin + constARPLength
@@ -310,7 +362,6 @@ def linuxUnpack(packet, sniff):
 		# If the protocol is 6, meaning TCP, then unpack the TCP information.
 		# If the protocol is 17, meaning UDP, then unpack the UDP information.
 		begin = constEthHeaderLength + constIPHeaderLength
-		protocol = ''
 		if ipProtocol == 1:
 			end = begin + constICMPHeaderLength
 			icmp(packet, begin, end)
@@ -320,29 +371,28 @@ def linuxUnpack(packet, sniff):
 			tcp(packet, begin, end)
 			protocol = 'tcp'
 		elif ipProtocol == 17:
-			return('')
 			end = begin + constUDPHeaderLength
 			udp(packet, begin, end)
 			protocol = 'udp'
 			
-		# Separator	
-		print('\n----------------------------------------')	
+	# Separator	
+	print('\n----------------------------------------')	
 		
-		# If the sniff key is 0, save the packets accordingly.
-		# If sniff key is not 0, do not save the packets.
-		if sniff == 0:
-			if protocol == 'arp':
-				allList.append(packet)
-				arpList.append(packet)
-			elif protocol == 'icmp':
-				allList.append(packet)
-				icmpList.append(packet)				
-			elif protocol == 'tcp':
-				allList.append(packet)
-				tcpList.append(packet)				
-			elif protocol == 'udp':
-				allList.append(packet)
-				udpList.append(packet)
+	# If the sniff key is 0, save the packets accordingly.
+	# If sniff key is not 0, do not save the packets.
+	if sniff == 0:
+		if protocol == 'arp':
+			allList.append(packet)
+			arpList.append(packet)
+		elif protocol == 'icmp':
+			allList.append(packet)
+			icmpList.append(packet)				
+		elif protocol == 'tcp':
+			allList.append(packet)
+			tcpList.append(packet)				
+		elif protocol == 'udp':
+			allList.append(packet)
+			udpList.append(packet)
 
 def windowsUnpack(packet, sniff):
 	# Unpack the IP information.
@@ -386,7 +436,10 @@ def linuxFilter():
 	while True:
 		# Display filtering options.
 		# Repeated if incorrect input.
-		decision = raw_input('All: 0\nICMP: 2\nARP: 1\nTCP: 3\nUDP: 4\nCancel: C\nSelection: ')
+		decision = raw_input('All: 0\nARP: 1\nICMP: 2\nTCP: 3\nUDP: 4\nCancel: C\nSelection: ')
+			
+		# Separator
+		print('')
 
 		# Filter based on input, if input is not supported, notify user.
 		# If no protocols of certain type were filtered, notify user.
@@ -432,7 +485,7 @@ def linuxFilter():
 			else:
 				print('No protocols of this type were sniffed.')
 		elif (decision == 'C') or (decision == 'c'):
-			print('Filering stopped...')
+			print('Filtering stopped...')
 			break
 		else:
 			print('Unsupported input, try again...')
@@ -442,7 +495,10 @@ def windowsFilter():
 		# Display filtering options.
 		# Repeated if incorrect input.
 		decision = raw_input('All: 0\nICMP: 2\nTCP: 3\nUDP: 4\nCancel: C\nSelection: ')
-
+					
+		# Separator
+		print('')
+	
 		# Filter based on input, if input is not supported, notify user.
 		# If no protocols of certain type were filtered, notify user.
 		# If user chooses cancel option, break while loop.
@@ -479,7 +535,7 @@ def windowsFilter():
 			else:
 				print('No protocols of this type were sniffed.')
 		elif (decision == 'C') or (decision == 'c'):
-			print('Filering stopped...')
+			print('Filtering stopped...')
 			break
 		else:
 			print('Unsupported input, try again...')
@@ -526,6 +582,7 @@ def sniff():
 		# Ask the user to begin.
 		startSniff()
 	except KeyboardInterrupt:
+		print('\nApplication cancelled')
 		close()
 		
 	try:
@@ -604,7 +661,7 @@ def sniff():
 		elif os == 'Windows':
 			windowsFilter()
 	except KeyboardInterrupt:
-		print "\nFiltering cancelled."
+		print "\nApplication cancelled."
 		close()
 	
 	close()  

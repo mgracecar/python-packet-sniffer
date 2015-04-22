@@ -22,6 +22,13 @@ constTCPHeaderLength = 20
 constUDPHeaderLength = 8
 constICMPHeaderLength = 8
 
+# Lists of unpacked packets.
+allList = []
+arpList = []
+icmpList = []
+tcpList = []
+udpList = []
+
 def eth(packet, begin, end):
 	# Get Ethernet header using begin and end.
 	ethHeader = packet[begin:end]
@@ -32,14 +39,14 @@ def eth(packet, begin, end):
 	# 6s signifies we are unpacking a string of size 6 bytes.
 	# H signifies we are unpacking an integer of size 2 bytes.
 	ethHeaderUnpacked = unpack('!6s6sH', ethHeader)
-	
+		
 	# The first 6s is 6 bytes and contains the destination address.
 	ethDestAddress = ethHeaderUnpacked[0]
 	
 	# The second 6s is 6 bytes and contains the source address.
 	ethSourceAddress = ethHeaderUnpacked[1]
 	
-	# The third H is 2 bytes and contains the packet length.
+	# The first H is 2 bytes and contains the packet length.
 	ethType = socket.ntohs(ethHeaderUnpacked[2])
 	
 	# Properly unpack and format the destination address.
@@ -176,7 +183,7 @@ def icmp(packet, begin, end):
 			'\nType: ' + str(icmpType) +
 			'\nCode: ' + str(icmpCode) + 
 			'\nChecksum: ' + format(icmpChecksum, '#04X'))
-
+	
 def tcp(packet, begin, end):
 	# Get TCP header using begin and end.
 	tcpHeader = packet[begin:end]
@@ -280,17 +287,233 @@ def udp(packet, begin, end):
 	'\nDestination Port: ' + str(udpDestPort) +
 	'\nLength: ' + str(udpLength) + ' bytes' +
 	'\nChecksum: ' + format(udpChecksum, '#04X'))
+	
+def linuxUnpack(packet, sniff):
+	# Unpack the Ethernet (MAC) information.
+	begin = 0
+	end = constEthHeaderLength
+	ethProtocol = eth(packet, begin, end)
 
-def start():
-	# Ask the user if they would like to begin the sniffer or not.
-	decision = raw_input('Hello, would you like to sniff the network? Y/N: ')
+	# Find if the Ethernet frame is ARP or IP.
+	begin = constEthHeaderLength
+	if ethProtocol == 1544:
+		# Unpack the ARP information.
+		end = begin + constARPLength
+		arp(packet, begin, end)
+		protocol = 'arp'
+	elif ethProtocol == 8:
+		# Unpack the IP information.
+		end = begin + constIPHeaderLength
+		ipProtocol = ip(packet, begin, end)
+		
+		# If the protocol is 1, meaning ICMP, then unpack the ICMP information.
+		# If the protocol is 6, meaning TCP, then unpack the TCP information.
+		# If the protocol is 17, meaning UDP, then unpack the UDP information.
+		begin = constEthHeaderLength + constIPHeaderLength
+		protocol = ''
+		if ipProtocol == 1:
+			end = begin + constICMPHeaderLength
+			icmp(packet, begin, end)
+			protocol = 'icmp'
+		elif ipProtocol == 6:
+			end = begin + constTCPHeaderLength
+			tcp(packet, begin, end)
+			protocol = 'tcp'
+		elif ipProtocol == 17:
+			return('')
+			end = begin + constUDPHeaderLength
+			udp(packet, begin, end)
+			protocol = 'udp'
+			
+		# Separator	
+		print('\n----------------------------------------')	
+		
+		# If the sniff key is 0, save the packets accordingly.
+		# If sniff key is not 0, do not save the packets.
+		if sniff == 0:
+			if protocol == 'arp':
+				allList.append(packet)
+				arpList.append(packet)
+			elif protocol == 'icmp':
+				allList.append(packet)
+				icmpList.append(packet)				
+			elif protocol == 'tcp':
+				allList.append(packet)
+				tcpList.append(packet)				
+			elif protocol == 'udp':
+				allList.append(packet)
+				udpList.append(packet)
 
-	# Y runs the rest of the application.
-	# N exits the application.
-	if (decision == 'Y') or (decision == 'y'):
-		print('Sniffing, press Ctrl+c to cancel...')
-	elif (decision == 'N') or (decision == 'n'):
-		close()
+def windowsUnpack(packet, sniff):
+	# Unpack the IP information.
+	begin = 0
+	end = constIPHeaderLength
+	ipProtocol = ip(packet, begin, end)
+	
+	# If the protocol is 1, meaning ICMP, then unpack the ICMP information.
+	# If the protocol is 6, meaning TCP, then unpack the TCP information.
+	# If the protocol is 17, meaning UDP, then unpack the UDP information.
+	begin = constIPHeaderLength
+	protocol = ''
+	if ipProtocol == 1:
+		end = begin + constICMPHeaderLength
+		icmp(packet, begin, end)
+		protocol = 'icmp'
+	elif ipProtocol == 6:
+		end = begin + constTCPHeaderLength
+		tcp(packet, begin, end)
+		protocol = 'tcp'
+	elif ipProtocol == 17:
+		end = begin + constUDPHeaderLength
+		udp(packet, begin, end)
+		protocol = 'udp'
+		
+	# Separator	
+	print('\n----------------------------------------')	
+	
+	# If the sniff key is 0, save the packets accordingly.
+	# If sniff key is not 0, do not save the packets.
+	if sniff == 0:
+		if protocol == 'icmp':
+			icmpList.append(packet)				
+		elif protocol == 'tcp':
+			tcpList.append(packet)				
+		elif protocol == 'udp':
+			udpList.append(packet)
+		allList.append(packet)
+
+def linuxFilter():
+	while True:
+		# Display filtering options.
+		# Repeated if incorrect input.
+		decision = raw_input('All: 0\nICMP: 2\nARP: 1\nTCP: 3\nUDP: 4\nCancel: C\nSelection: ')
+
+		# Filter based on input, if input is not supported, notify user.
+		# If no protocols of certain type were filtered, notify user.
+		# If user chooses cancel option, break while loop.
+		if decision == '0':
+			length = len(allList)
+			if length > 0:
+				for i in range(length):
+					packet = allList[i]
+					linuxUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif decision == '1':
+			length = len(arpList)
+			if length > 0:
+				for i in range(length):
+					packet = arpList[i]
+					linuxUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif decision == '2':
+			length = len(icmpList)
+			if length > 0:
+				for i in range(length):
+					packet = icmpList[i]
+					linuxUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif decision == '3':
+			length = len(tcpList)
+			if length > 0:
+				for i in range(length):
+					packet = tcpList[i]
+					linuxUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif decision == '4':
+			length = len(udpList)
+			if length > 0:
+				for i in range(length):
+					packet = udpList[i]
+					linuxUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif (decision == 'C') or (decision == 'c'):
+			print('Filering stopped...')
+			break
+		else:
+			print('Unsupported input, try again...')
+
+def windowsFilter():
+	while True:
+		# Display filtering options.
+		# Repeated if incorrect input.
+		decision = raw_input('All: 0\nICMP: 2\nTCP: 3\nUDP: 4\nCancel: C\nSelection: ')
+
+		# Filter based on input, if input is not supported, notify user.
+		# If no protocols of certain type were filtered, notify user.
+		# If user chooses cancel option, break while loop.
+		if decision == '0':
+			length = len(allList)
+			if length > 0:
+				for i in range(length):
+					packet = allList[i]
+					windowsUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif decision == '2':
+			length = len(icmpList)
+			if length > 0:
+				for i in range(length):
+					packet = icmpList[i]
+					windowsUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif decision == '3':
+			length = len(tcpList)
+			if length > 0:
+				for i in range(length):
+					packet = tcpList[i]
+					windowsUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif decision == '4':
+			length = len(udpList)
+			if length > 0:
+				for i in range(length):
+					packet = udpList[i]
+					windowsUnpack(packet, sniff)
+			else:
+				print('No protocols of this type were sniffed.')
+		elif (decision == 'C') or (decision == 'c'):
+			print('Filering stopped...')
+			break
+		else:
+			print('Unsupported input, try again...')
+
+def startSniff():
+	while True:
+		# Ask the user if they would like to begin the sniffer or not.
+		decision = raw_input('Hello, would you like to sniff the network? Y/N: ')
+		
+		# Y runs the rest of the application.
+		# N exits the application.
+		if (decision == 'Y') or (decision == 'y'):
+			print('Sniffing, press Ctrl+c to cancel...')
+			break
+		elif (decision == 'N') or (decision == 'n'):
+			close()
+		else:
+			print('Unsupported input...')
+	
+
+def startFilter():
+	while True:
+		# Ask the user if they would like to filter the packets or not.
+		decision = raw_input('Would you like to filter the sniffed packets by protocol? Y/N: ')
+
+		# Y runs the rest of the application.
+		# N exits the application.
+		if (decision == 'Y') or (decision == 'y'):
+			print('Select a protocol...')
+			break
+		elif (decision == 'N') or (decision == 'n'):
+			close()
+		else:
+			print('Unsupported input...')
 
 def close():
 	# Exit the application.
@@ -299,17 +522,23 @@ def close():
 	sys.exit()
 
 def sniff():
-	# Ask the user to begin.
-	start()
-	
-	# Know what platform the application is running on.
-	plat = platform.system()
-	
 	try:
+		# Ask the user to begin.
+		startSniff()
+	except KeyboardInterrupt:
+		close()
+		
+	try:
+		# Know what platform the application is running on.
+		os = platform.system()
+	
+		# A sniff key of 0 means the application is sniffing and packets must be saved.
+		sniff = 0
+		
 		# If Linux, set up the raw socket the Linux way.
 		# If Windows, set up the raw socket the Windows way.
 		# If not Linux or Windows, close the application.
-		if plat == 'Linux':
+		if os == 'Linux':
 			# Create the raw socket.
 			sock = socket.socket(socket.AF_PACKET , socket.SOCK_RAW , socket.ntohs(0x0003))
 			
@@ -318,43 +547,13 @@ def sniff():
 				# Recieve the packets in the network.
 				# Packet will be a tuple, use the first element in the tuple.
 				packet = sock.recvfrom(65565)
-				packet = packet[0]
+				packet = packet[0]				
 				
-				# Unpack the Ethernet (MAC) information.
-				begin = 0
-				end = constEthHeaderLength
-				ethType = eth(packet, begin, end)
+				linuxUnpack(packet, sniff)
 				
-				# Find if the Ethernet frame is ARP or IP.
-				begin = constEthHeaderLength
-				if ethType == 1544:
-					# Unpack the ARP information.
-					end = begin + constARPLength
-					arp(packet, begin, end)
-				elif ethType == 8:
-					# Unpack the IP information.
-					end = begin + constIPHeaderLength
-					ipProtocol = ip(packet, begin, end)
-					
-					# If the protocol is 1, meaning ICMP, then unpack the ICMP information.
-					# If the protocol is 6, meaning TCP, then unpack the TCP information.
-					# If the protocol is 17, meaning UDP, then unpack the UDP information.
-					begin = constEthHeaderLength + constIPHeaderLength
-					if ipProtocol == 1:
-						end = begin + constICMPHeaderLength
-						icmp(packet, begin, end)
-					elif ipProtocol == 6:
-						end = begin + constTCPHeaderLength
-						tcp(packet, begin, end)
-					elif ipProtocol == 17:
-						end = begin + constUDPHeaderLength
-						udp(packet, begin, end)
-						
-					print('\n----------------------------------------')
-					
 			# Close the socket.
 			sock.close()
-		elif plat == 'Windows':
+		elif os == 'Windows':
 			# The public network interface.
 			HOST = socket.gethostbyname(socket.gethostname())
 
@@ -374,28 +573,9 @@ def sniff():
 				# Packet will be a tuple, use the first element in the tuple.
 				packet = sock.recvfrom(65565)
 				packet = packet[0]
-				
-				# Unpack the IP information.
-				begin = 0
-				end = constIPHeaderLength
-				ipProtocol = ip(packet, begin, end)
-				
-				# If the protocol is 1, meaning ICMP, then unpack the ICMP information.
-				# If the protocol is 6, meaning TCP, then unpack the TCP information.
-				# If the protocol is 17, meaning UDP, then unpack the UDP information.
-				begin = constIPHeaderLength
-				if ipProtocol == 1:
-					end = begin + constICMPHeaderLength
-					icmp(packet, begin, end)
-				elif ipProtocol == 6:
-					end = begin + constTCPHeaderLength
-					tcp(packet, begin, end)
-				elif ipProtocol == 17:
-					end = begin + constUDPHeaderLength
-					udp(packet, begin, end)
 					
-				print('\n----------------------------------------')	
-			
+				windowsUnpack(packet, sniff)	
+				
 			# Disable promiscuous mode.	
 			sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
 			
@@ -403,11 +583,29 @@ def sniff():
 			sock.close()
 		else:
 			print('The OS you are running is not supported.')
-			
+			close()   				
 	except socket.error, msg:
 		print('Socket could not be created. \nError code: ' + str(msg[0]) + '\nMessage: ' + msg[1])
+		close()
 	except KeyboardInterrupt:
-		print "\nSniffing stopped."   
+		print "\nSniffing stopped."
+	
+	try:
+		# Ask the user to filter.
+		startFilter()
+
+		# A sniff key of 1 means the application is not sniffing and packets must not be saved.
+		sniff = 1
+	
+		# If Linux, filter Linux's supported protocols.
+		# If Windows, filter Window's supported protocols.
+		if os == 'Linux':
+			linuxFilter()
+		elif os == 'Windows':
+			windowsFilter()
+	except KeyboardInterrupt:
+		print "\nFiltering cancelled."
+		close()
 	
 	close()  
 

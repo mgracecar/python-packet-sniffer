@@ -27,10 +27,10 @@ def plotThroughputData(tp):
     plotType = 'markers+lines'
     sec = []
     for i in range(0,len(tp)):
-        sec[i] = i
+        sec.append(i)#sec[i] = i
         i+=1
-    throughputData = Scatter(x=tp,
-                     y=sec,
+    throughputData = Scatter(x=sec,
+                     y=tp,
                      mode=plotType)
 
     data = Data([throughputData])
@@ -51,9 +51,10 @@ def findAverageThroughput(vals):
 
 def plotCongestionWindowData(congestionY):
     plotType = 'markers+lines'
+    sec = []
     congestionX = []
     for i in range(0,len(congestionY)):
-        sec[i] = i
+        congestionX.append(i)
         i+=1
     throughputData = Scatter(x=congestionX,
                      y=congestionY,
@@ -74,18 +75,18 @@ def findAveragePacketFrameSize(vals):
     print('Average Packet/Frame Size =' , average, 'bits')
 
     return average
-
 '''
 def main():
 
+    
     x = [random.randint(0,500),random.randint(0,500),random.randint(0,500),
          random.randint(0,500),random.randint(0,500),random.randint(0,500),
          random.randint(0,500),random.randint(0,500),random.randint(0,500)]
 
-    #findMaxDiameter(x)
-    #plotThroughputData(x,'markers')
-    #findAveragePacketFrameSize(x)
-    #plotCongestionWindowData(x,'markers')
+    findMaxDiameter(x)
+    plotThroughputData(x)
+    findAveragePacketFrameSize(x)
+    plotCongestionWindowData(x)
 
 
 

@@ -1171,12 +1171,12 @@ def sniff():
 			# If Windows, filter Window's supported protocols, then extract.
 			if os == linux:
 				filtered = linuxFilter()
-				startExtract()
-				linuxExtract(filtered)
+				if startExtract() == 0:
+					linuxExtract(filtered)
 			elif os == windows:
 				filtered = windowsFilter()
-				startExtract()
-				windowsExtract(filtered)
+				if startExtract() == 0:
+					windowsExtract(filtered)
 		except KeyboardInterrupt:
 			print "\nFiltering and extracting stopped."
 	

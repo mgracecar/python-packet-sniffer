@@ -948,7 +948,7 @@ def windowsExtract(filtered):
 	
 	# Will keep looping until given correct input.
 	while True:
-		if filtered == 1:
+		if filtered == 0:
 			print(ipAttributes)
 			print(icmpAttributes)
 			decision = raw_input('Selection: ')
@@ -977,7 +977,7 @@ def windowsExtract(filtered):
 					ip(packet, attKey, printKey)
 					print('\n----------------------------------------')
 				break
-		elif filtered == 2:
+		elif filtered == 1:
 			print(ipAttributes)
 			print(tcpAttributes)
 			decision = raw_input('Selection: ')
@@ -1006,7 +1006,7 @@ def windowsExtract(filtered):
 					ip(packet, attKey, printKey)
 					print('\n----------------------------------------')
 				break
-		elif filtered == 3:
+		elif filtered == 2:
 			print(ipAttributes)
 			print(udpAttributes)
 			decision = raw_input('Selection: ')

@@ -1176,6 +1176,7 @@ def sniff():
 			elif os == windows:
 				filtered = windowsFilter()
 				startExtract()
+				windowsExtract(filtered)
 		except KeyboardInterrupt:
 			print "\nFiltering and extracting stopped."
 	

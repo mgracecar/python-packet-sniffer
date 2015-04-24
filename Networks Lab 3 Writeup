@@ -1,0 +1,18 @@
+Networks Lab 3: Snipe the Packet
+Summary
+	Highlights
+This program sniffs packets on the machine it is running on. Once the program stops the user is able to filter the results from the sniff down to specific fields as well as calculations and graphs for certain fields. In order to restart a sniff the user must close the program and restart it.
+	Execution Details
+Follow these steps to run the program:
+1.	Run the file sniffer.py
+2.	When prompted to begin sniffing hit ‘Y’ for yes
+3.	When you are ready to stop press “ctrl + c”
+4.	The user will then be prompted to filter data or not
+a.	If yes, the user will then be prompted fields or calculations to filter
+b.	Select the desired field number and press enter
+
+Sample Results
+
+Below are screen shots of our programs results.
+
+

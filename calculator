@@ -1,0 +1,81 @@
+import plotly.plotly as py
+from plotly.graph_objs import *
+import time, random
+
+def findAverageDiameter(data):
+    sum = 0
+    count = 0
+    #sum all of the values in vals
+    for value in data:
+        sum = sum + value
+        count = count + 1
+    #divide by # of values in vals
+    average = sum / count
+    print('Average Throughput =' , average, 'bits/sec')
+    
+    return average
+
+def plotThroughputData(tp,plotType):
+    sec = []
+    for i in range(0,len(tp)):
+        sec[i] = i
+        i+=1
+    throughputData = Scatter(x=tp,
+                     y=sec,
+                     mode=plotType)
+
+    data = Data([throughputData])
+    plot_url = py.plot(data,filename='Average Throughput')
+
+def findAverageThroughput(vals):
+    sum = 0
+    count = 0
+    #sum all of the values in vals
+    for value in vals:
+        sum = sum + value
+        count = count + 1
+    #divide by # of values in vals
+    average = sum / count
+    print('Average Throughput =' , average, 'bits/sec')
+    
+    return average
+
+def plotCongestionWindowData(congestionY,plotType):
+    congestionX = []
+    for i in range(0,len(congestionY)):
+        sec[i] = i
+        i+=1
+    throughputData = Scatter(x=congestionX,
+                     y=congestionY,
+                     mode=plotType)
+
+    data = Data([throughputData])
+    plot_url = py.plot(data,filename='Congestion Window')
+
+def findAveragePacketFrameSize(vals):
+    sum = 0
+    count = 0
+    #sum all of the values in vals
+    for value in vals:
+        sum = sum + value
+        count = count + 1
+    #divide by # of values in vals
+    average = sum / count
+    print('Average Packet/Frame Size =' , average, 'bits')
+
+    return average
+
+def main():
+
+    
+    x = [random.randint(0,500),random.randint(0,500),random.randint(0,500),
+         random.randint(0,500),random.randint(0,500),random.randint(0,500),
+         random.randint(0,500),random.randint(0,500),random.randint(0,500)]
+    
+    plotThroughputData(x,'markers')
+    findAveragePacketFrameSize(x)
+    plotCongestionWindowData(x,'markers')
+
+
+
+main()

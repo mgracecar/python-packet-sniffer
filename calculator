@@ -2,6 +2,7 @@ import plotly.plotly as py
 from plotly.graph_objs import *
 import time, random
 
+#data is a list of diameter data
 def findAverageDiameter(data):
     sum = 0
     count = 0
@@ -15,7 +16,15 @@ def findAverageDiameter(data):
     
     return average
 
-def plotThroughputData(tp,plotType):
+#diameter is the list of diameter valuess
+def findMaxDiameter(diameter):
+    maxDiameter = max(diameter)
+    print('Max Diameter =', maxDiameter)
+    return maxDiameter
+
+#tp is a list of throughputs
+def plotThroughputData(tp):
+    plotType = 'markers+lines'
     sec = []
     for i in range(0,len(tp)):
         sec[i] = i
@@ -40,7 +49,8 @@ def findAverageThroughput(vals):
     
     return average
 
-def plotCongestionWindowData(congestionY,plotType):
+def plotCongestionWindowData(congestionY):
+    plotType = 'markers+lines'
     congestionX = []
     for i in range(0,len(congestionY)):
         sec[i] = i
@@ -65,17 +75,19 @@ def findAveragePacketFrameSize(vals):
 
     return average
 
+'''
 def main():
 
-    
     x = [random.randint(0,500),random.randint(0,500),random.randint(0,500),
          random.randint(0,500),random.randint(0,500),random.randint(0,500),
          random.randint(0,500),random.randint(0,500),random.randint(0,500)]
-    
-    plotThroughputData(x,'markers')
-    findAveragePacketFrameSize(x)
-    plotCongestionWindowData(x,'markers')
+
+    #findMaxDiameter(x)
+    #plotThroughputData(x,'markers')
+    #findAveragePacketFrameSize(x)
+    #plotCongestionWindowData(x,'markers')
 
 
 
 main()
+'''
